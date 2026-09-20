@@ -1,0 +1,16 @@
+sky:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: localhost
+    port: 3306
+    database: daynight
+    username: root
+    password: qlhjoy986
+  alioss:
+    endpoint: oss-cn-wuhan-lr.aliyuncs.com
+    access-key-id: ${ALIYUN_ACCESS_KEY_ID}
+    access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET}
+    bucket-name: sky-bucket0123
+  wechat:
+    secret: ceffa4b062ff9cbeeb11b79bd9525e09
+    appid: wx4e887a1cb11a9374
