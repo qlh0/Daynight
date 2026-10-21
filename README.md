@@ -431,7 +431,7 @@ nohup java -jar sky-server-1.0-SNAPSHOT.jar --spring.profiles.active=prod > app.
 
 ## 已知限制
 
-当前实现的边界（如实说明）：
+当前实现的边界：
 
 - **秒杀队列是内存队列**（`LinkedBlockingQueue`），应用重启会丢失排队中的任务。生产环境应替换为 RabbitMQ / RocketMQ，或改用 Redis List 持久化。
 - **互斥锁是单机锁**（Redis `setIfAbsent`），多实例部署时需升级为 Redisson 分布式锁。
