@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.SeckillMapper">
+
+    <sql id="fields">
+        s.id, s.dish_id, s.name, s.image, s.seckill_price, s.stock,
+        s.begin_time, s.end_time, s.status, s.create_time, s.update_time,
+        d.price as original_price
+    </sql>
+
+    <!-- 进行中的秒杀活动 -->
+    <select id="listActive" resultType="SeckillDish">
+        select
+        <include refid="fields"/>
+        from seckill_dish s
+        left join dish d on s.dish_id = d.id
+        where s.status = 1
+          and s.end_time &gt;= now()
+        order by s.id
+    </select>
+
+    <select id="getById" resultType="SeckillDish">
+        select
+        <include refid="fields"/>
+        from seckill_dish s
+        left join dish d on s.dish_id = d.id
+        where s.id = #{id}
+    </select>
+
+    <!--
+        乐观锁扣减库存：
+        不先查询再更新，而是把 stock > 0 作为更新条件，
+        由数据库行锁保证原子性，影响行数为0即表示库存不足。
+    -->
+    <update id="deductStock">
+        update seckill_dish
+        set stock = stock - 1,
+            update_time = now()
+        where id = #{id}
+          and stock &gt; 0
+    </update>
+
+</mapper>

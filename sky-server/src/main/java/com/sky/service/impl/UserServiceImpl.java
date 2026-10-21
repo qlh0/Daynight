@@ -49,7 +49,14 @@ public class UserServiceImpl implements UserService {
         String openid = jsonObject.getString("openid");
 
         if(openid==null){
-            throw new LoginFailedException(MessageConstant.LOGIN_FAILED);
+            //本地开发模式：小程序的appid与后端配置不一致时微信返回40163/40029等错误，
+            //此时用固定openid兜底，方便本地前后端联调（生产环境不要开启）
+            if(weChatProperties.isDevMode()){
+                log.warn("微信登录校验失败，已启用本地开发兜底openid。微信返回: {}", json);
+                openid = "dev_local_openid";
+            }else{
+                throw new LoginFailedException(MessageConstant.LOGIN_FAILED);
+            }
         }
 
         //判断当前用户是否为新用户。是则自动完成注册

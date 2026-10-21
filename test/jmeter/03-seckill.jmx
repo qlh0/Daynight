@@ -1,0 +1,159 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="03-秒杀并发（验证不超卖）" enabled="true">
+      <stringProp name="TestPlan.comments">N个不同用户同时抢购，验证库存不超卖。跑完请执行 verify.ps1 校验数据库。</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="host" elementType="Argument">
+            <stringProp name="Argument.name">host</stringProp>
+            <stringProp name="Argument.value">${__P(host,localhost)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="port" elementType="Argument">
+            <stringProp name="Argument.name">port</stringProp>
+            <stringProp name="Argument.value">${__P(port,8080)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="seckillId" elementType="Argument">
+            <stringProp name="Argument.name">seckillId</stringProp>
+            <stringProp name="Argument.value">${__P(seckillId,1)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="jwtSecret" elementType="Argument">
+            <stringProp name="Argument.name">jwtSecret</stringProp>
+            <stringProp name="Argument.value">${__P(jwtSecret,itheima)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP请求默认值" enabled="true">
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.domain">${host}</stringProp>
+        <stringProp name="HTTPSampler.port">${port}</stringProp>
+        <stringProp name="HTTPSampler.protocol">http</stringProp>
+        <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.path"></stringProp>
+        <stringProp name="HTTPSampler.method">GET</stringProp>
+        <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+        <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+        <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+        <stringProp name="HTTPSampler.connected_url_re"></stringProp>
+        <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="秒杀线程组" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">${__P(loops,1)}</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,30)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,0)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="生成不同用户的JWT" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script"><![CDATA[
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
+def b64 = { byte[] b -> Base64.getUrlEncoder().withoutPadding().encodeToString(b) }
+
+// 每个线程一个不同的用户id，否则会被"一人一单"拦住
+long userId = 9000L + ctx.getThreadNum()
+String secret = vars.get("jwtSecret")
+long exp = (System.currentTimeMillis() / 1000) + 7200
+
+String h = b64('{"alg":"HS256"}'.getBytes("UTF-8"))
+String p = b64(("{\"userId\":" + userId + ",\"exp\":" + exp + "}").getBytes("UTF-8"))
+
+Mac mac = Mac.getInstance("HmacSHA256")
+mac.init(new SecretKeySpec(secret.getBytes("UTF-8"), "HmacSHA256"))
+String s = b64(mac.doFinal((h + "." + p).getBytes("UTF-8")))
+
+vars.put("token", h + "." + p + "." + s)
+vars.put("uid", String.valueOf(userId))
+]]></stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP信息头管理器" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/json;charset=UTF-8</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">authentication</stringProp>
+              <stringProp name="Header.value">${token}</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /user/seckill/${seckillId}" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.path">/user/seckill/${seckillId}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="校验业务响应" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script"><![CDATA[
+import groovy.json.JsonSlurper
+
+def body = prev.getResponseDataAsString()
+def json
+try {
+    json = new JsonSlurper().parseText(body)
+} catch (Exception e) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("响应不是合法JSON，服务可能没启动或返回了错误页: "
+            + body.substring(0, Math.min(200, body.length())))
+    return
+}
+
+if (json.code == 1) {
+    //抢到了
+    prev.setResponseMessage("SECKILL_SUCCESS " + json.data)
+} else if (json.code == 0) {
+    //售罄/重复下单属于预期内的业务拒绝，不算失败
+    prev.setResponseMessage("SECKILL_REJECT " + json.msg)
+} else {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("非预期业务码: " + json.code + " msg=" + json.msg)
+}
+]]></stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

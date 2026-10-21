@@ -24,5 +24,14 @@ public class MessageConstant {
     public static final String DISH_BE_RELATED_BY_SETMEAL = "当前菜品关联了套餐,不能删除";
     public static final String ORDER_STATUS_ERROR = "订单状态错误";
     public static final String ORDER_NOT_FOUND = "订单不存在";
+    public static final String SECKILL_NOT_FOUND = "秒杀活动不存在或已结束";
+    public static final String SECKILL_SOLD_OUT = "秒杀商品已售罄";
+    public static final String SECKILL_REPEAT = "您已抢购过该商品，请勿重复下单";
+    public static final String SECKILL_BUSY = "当前抢购人数过多，请稍后重试";
+    public static final String SECKILL_STOCK_ERROR = "库存不足，扣减失败";
+    public static final String SECKILL_ORDER_FAILED = "秒杀订单创建失败";
+    public static final String RATE_LIMIT_EXCEEDED = "请求过于频繁，请稍后重试";
+    public static final String IDEMPOTENT_TOKEN_MISSING = "缺少幂等token，请先获取";
+    public static final String IDEMPOTENT_REPEAT_SUBMIT = "请勿重复提交";
 
 }

@@ -1,7 +1,9 @@
 package com.sky.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.sky.component.RedisIdWorker;
 import com.sky.constant.MessageConstant;
+import com.sky.constant.RedisConstants;
 import com.sky.context.BaseContext;
 import com.sky.dto.OrdersSubmitDTO;
 import com.sky.entity.AddressBook;
@@ -42,6 +44,8 @@ public class OrderServiceImpl implements OrderService {
     private ShoppingCartMapper shoppingCartMapper;
     @Autowired
     private AddressBookMapper addressBookMapper;
+    @Autowired
+    private RedisIdWorker redisIdWorker;
 
 
     /**
@@ -74,7 +78,7 @@ public class OrderServiceImpl implements OrderService {
         order.setPhone(addressBook.getPhone());
         order.setAddress(addressBook.getDetail());
         order.setConsignee(addressBook.getConsignee());
-        order.setNumber(String.valueOf(System.currentTimeMillis()));
+        order.setNumber(String.valueOf(redisIdWorker.nextId(RedisConstants.ID_PREFIX_ORDER)));
         order.setUserId(userId);
         order.setStatus(Orders.PENDING_PAYMENT);
         order.setPayStatus(Orders.UN_PAID);

@@ -1,0 +1,145 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="04-缓存击穿（删key后同时打）" enabled="true">
+      <stringProp name="TestPlan.comments">跑前先删掉 dish_11，然后N个线程同时请求同一分类。互斥锁生效时，服务端日志里"回源写缓存"只应出现1次。</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="host" elementType="Argument">
+            <stringProp name="Argument.name">host</stringProp>
+            <stringProp name="Argument.value">${__P(host,localhost)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="port" elementType="Argument">
+            <stringProp name="Argument.name">port</stringProp>
+            <stringProp name="Argument.value">${__P(port,8080)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="categoryId" elementType="Argument">
+            <stringProp name="Argument.name">categoryId</stringProp>
+            <stringProp name="Argument.value">${__P(categoryId,11)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="jwtSecret" elementType="Argument">
+            <stringProp name="Argument.name">jwtSecret</stringProp>
+            <stringProp name="Argument.value">${__P(jwtSecret,itheima)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"></stringProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP请求默认值" enabled="true">
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+          <collectionProp name="Arguments.arguments"/>
+        </elementProp>
+        <stringProp name="HTTPSampler.domain">${host}</stringProp>
+        <stringProp name="HTTPSampler.port">${port}</stringProp>
+        <stringProp name="HTTPSampler.protocol">http</stringProp>
+        <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.path"></stringProp>
+        <stringProp name="HTTPSampler.method">GET</stringProp>
+        <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+        <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+        <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+        <stringProp name="HTTPSampler.embedded_url_re"></stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="菜品列表线程组" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">${__P(loops,1)}</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,60)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(rampup,1)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="生成JWT" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script"><![CDATA[
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
+def b64 = { byte[] b -> Base64.getUrlEncoder().withoutPadding().encodeToString(b) }
+
+long userId = 7000L + ctx.getThreadNum()
+String secret = vars.get("jwtSecret")
+long exp = (System.currentTimeMillis() / 1000) + 7200
+
+String h = b64('{"alg":"HS256"}'.getBytes("UTF-8"))
+String p = b64(("{\"userId\":" + userId + ",\"exp\":" + exp + "}").getBytes("UTF-8"))
+
+Mac mac = Mac.getInstance("HmacSHA256")
+mac.init(new SecretKeySpec(secret.getBytes("UTF-8"), "HmacSHA256"))
+String s = b64(mac.doFinal((h + "." + p).getBytes("UTF-8")))
+
+vars.put("token", h + "." + p + "." + s)
+]]></stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP信息头管理器" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">authentication</stringProp>
+              <stringProp name="Header.value">${token}</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /user/dish/list" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+          <stringProp name="HTTPSampler.path">/user/dish/list?categoryId=${categoryId}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="校验返回菜品列表" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script"><![CDATA[
+def body = prev.getResponseDataAsString()
+def json
+try {
+    json = new groovy.json.JsonSlurper().parseText(body)
+} catch (Exception e) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("响应不是JSON: " + body.substring(0, Math.min(200, body.length())))
+    return
+}
+if (json.code != 1) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("业务码异常: " + body)
+} else if (!(json.data instanceof List)) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("data不是数组: " + body)
+} else {
+    prev.setResponseMessage("DISH_COUNT=" + json.data.size())
+}
+]]></stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

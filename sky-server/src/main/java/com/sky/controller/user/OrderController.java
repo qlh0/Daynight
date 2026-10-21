@@ -1,5 +1,6 @@
 package com.sky.controller.user;
 
+import com.sky.annotation.Idempotent;
 import com.sky.dto.OrdersSubmitDTO;
 import com.sky.result.Result;
 import com.sky.service.OrderService;
@@ -27,6 +28,7 @@ public class OrderController {
      */
     @PostMapping("/submit")
     @ApiOperation("用户下单")
+    @Idempotent(message = "订单正在处理中，请勿重复提交")
     public Result<OrderSubmitVO> submit(@RequestBody OrdersSubmitDTO ordersSubmitDTO) {
         log.info("用户下单：{}", ordersSubmitDTO);
         OrderSubmitVO orderSubmitVO = orderService.submitOrder(ordersSubmitDTO);

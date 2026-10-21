@@ -14,3 +14,5 @@ sky:
   wechat:
     secret: ceffa4b062ff9cbeeb11b79bd9525e09
     appid: wx4e887a1cb11a9374
+    # 本地开发兜底：小程序appid与本配置不一致时，微信登录会失败，这里放开以便本地联调
+    dev-mode: true

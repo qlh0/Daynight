@@ -1,0 +1,37 @@
+# 自动化测试专用配置
+# 与开发环境完全隔离：独立数据库 daynight_test + 独立 Redis 库 db15
+server:
+  port: 0
+
+spring:
+  datasource:
+    druid:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/daynight_test?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      username: root
+      password: qlhjoy986
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    database: 15
+
+# application.yml 里的 alioss/wechat 用的是 ${sky.xxx} 占位符，
+# 测试 profile 不会加载 application-dev.yml，所以这里必须给出具体值，否则启动时占位符解析失败
+sky:
+  alioss:
+    endpoint: oss-cn-wuhan-lr.aliyuncs.com
+    access-key-id: test-access-key
+    access-key-secret: test-access-secret
+    bucket-name: test-bucket
+  wechat:
+    appid: wx-test-appid
+    secret: wx-test-secret
+    # 测试时不调用真实微信接口，直接走本地兜底登录
+    dev-mode: true
+
+logging:
+  level:
+    com:
+      sky:
+        service: info
+        mapper: info
