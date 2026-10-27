@@ -121,6 +121,12 @@
             <artifactId>alibabacloud-oss-v2</artifactId>
             <version>0.5.0</version>
         </dependency>
+
+        <!-- Redisson：缓存读写锁 / 分布式锁 -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

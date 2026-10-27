@@ -36,8 +36,12 @@ public class TestDataHelper {
                 "(select id from orders where remark = '秒杀订单')");
         jdbcTemplate.update("delete from orders where remark = '秒杀订单'");
 
-        //2. 数据库库存恢复
-        jdbcTemplate.update("update seckill_dish set stock = ? where id = ?", stock, seckillId);
+        //2. 数据库库存恢复，并把活动时间窗口刷新到"当前有效"，避免种子数据过期导致用例失败
+        jdbcTemplate.update(
+                "update seckill_dish set stock = ?, status = 1, " +
+                        "begin_time = date_sub(now(), interval 1 hour), " +
+                        "end_time = date_add(now(), interval 30 day) where id = ?",
+                stock, seckillId);
 
         //3. Redis库存与购买记录清理
         redisTemplate.delete(SECKILL_STOCK_KEY + seckillId);

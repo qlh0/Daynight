@@ -16,6 +16,9 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,10 +36,10 @@ class DishCacheServiceTest {
 
     private static final long CATEGORY_ID = 11L;
     private static final long NOT_EXIST_CATEGORY_ID = 99999L;
-    private static final long TTL_MIN = 30 * 60L;
-    private static final long TTL_MAX = 40 * 60L;
+    private static final long TTL_MIN = 120 * 60L;
+    private static final long TTL_MAX = 130 * 60L;
     /**
-     * 容差：Redis的TTL按秒向上取整，写入1800秒后立刻读可能返回1799，留几秒余量避免误判
+     * 容差：Redis的TTL按秒向上取整，写入后立刻读可能少 1 秒，留几秒余量避免误判
      */
     private static final long TTL_TOLERANCE = 5L;
 
@@ -73,7 +76,7 @@ class DishCacheServiceTest {
         assertThat(stringRedisTemplate.hasKey("dish_" + CATEGORY_ID)).isTrue();
 
         Long ttl = stringRedisTemplate.getExpire("dish_" + CATEGORY_ID, TimeUnit.SECONDS);
-        assertThat(ttl).as("TTL应为30~40分钟的随机值").isBetween(TTL_MIN - TTL_TOLERANCE, TTL_MAX);
+        assertThat(ttl).as("TTL应为120~130分钟的随机值").isBetween(TTL_MIN - TTL_TOLERANCE, TTL_MAX);
     }
 
     @Test
@@ -134,6 +137,58 @@ class DishCacheServiceTest {
         dishCacheService.listByCategory(16L);
 
         dishCacheService.evictAll();
+
+        Set<String> keys = stringRedisTemplate.keys("dish_*");
+        assertThat(keys == null || keys.isEmpty()).isTrue();
+    }
+
+    // ================== Redisson 相关 ==================
+
+    @Test
+    void 二十个线程并发回源时数据库只被查询一次() throws Exception {
+        int threads = 20;
+        CountDownLatch startGate = new CountDownLatch(1);
+        CountDownLatch doneGate = new CountDownLatch(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    startGate.await();
+                    dishCacheService.listByCategory(CATEGORY_ID);
+                } catch (Exception ignored) {
+                    // 少量请求降级直查库属于预期
+                } finally {
+                    doneGate.countDown();
+                }
+            });
+        }
+
+        startGate.countDown();
+        assertThat(doneGate.await(30, TimeUnit.SECONDS)).isTrue();
+        pool.shutdown();
+
+        verify(dishService, times(1)).listWithFlavor(any());
+    }
+
+    @Test
+    void 写锁保护的更新会执行数据库操作并清理缓存() {
+        dishCacheService.listByCategory(CATEGORY_ID);
+        assertThat(stringRedisTemplate.hasKey("dish_" + CATEGORY_ID)).isTrue();
+
+        boolean[] executed = {false};
+        dishCacheService.executeAndEvictCategory(CATEGORY_ID, () -> executed[0] = true);
+
+        assertThat(executed[0]).as("数据库操作应被执行").isTrue();
+        assertThat(stringRedisTemplate.hasKey("dish_" + CATEGORY_ID)).as("缓存应被清理").isFalse();
+    }
+
+    @Test
+    void 写锁保护的批量更新会清理全部菜品缓存() {
+        dishCacheService.listByCategory(11L);
+        dishCacheService.listByCategory(12L);
+
+        dishCacheService.executeAndEvictAll(() -> { });
 
         Set<String> keys = stringRedisTemplate.keys("dish_*");
         assertThat(keys == null || keys.isEmpty()).isTrue();

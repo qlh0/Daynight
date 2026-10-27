@@ -12,6 +12,7 @@ import com.sky.service.SeckillOrderHandler;
 import com.sky.service.SeckillService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -49,6 +50,15 @@ public class SeckillServiceImpl implements SeckillService {
         SECKILL_SCRIPT.setLocation(new ClassPathResource("lua/seckill.lua"));
         SECKILL_SCRIPT.setResultType(Long.class);
     }
+
+    /**
+     * 下单模式开关：
+     * true  = 阻塞队列异步建单（默认，生产模式）
+     * false = 请求线程内同步建单（仅用于同步/异步对比测试）
+     * 运行期可通过 POST /admin/seckill/mode 切换
+     */
+    @Value("${sky.seckill.async-enabled:true}")
+    private volatile boolean asyncEnabled = true;
 
     /**
      * 阻塞队列：线程安全，满了以后offer返回false，天然起到限流作用
@@ -141,13 +151,29 @@ public class SeckillServiceImpl implements SeckillService {
         stringRedisTemplate.opsForValue()
                 .set(RedisConstants.SECKILL_RESULT_KEY + orderNo, "0", 1, TimeUnit.DAYS);
 
-        //3. 入队，立即返回。真正写库由消费者异步完成
-        boolean offered = queue.offer(SeckillMessage.builder()
+        SeckillMessage message = SeckillMessage.builder()
                 .userId(userId)
                 .seckillId(seckillId)
                 .orderNo(orderNo)
-                .build());
+                .build();
 
+        //3. 同步模式（对比测试用）：请求线程内直接建单，响应时间包含数据库写入
+        if (!asyncEnabled) {
+            try {
+                seckillOrderHandler.createOrder(message);
+                stringRedisTemplate.opsForValue()
+                        .set(RedisConstants.SECKILL_RESULT_KEY + orderNo, "1", 1, TimeUnit.DAYS);
+            } catch (Exception e) {
+                rollback(seckillId, userId, orderNo);
+                log.warn("[同步建单失败] orderNo={}", orderNo, e);
+                throw new OrderBusinessException(MessageConstant.SECKILL_ORDER_FAILED);
+            }
+            log.info("[秒杀同步建单成功] userId={}, seckillId={}, orderNo={}", userId, seckillId, orderNo);
+            return orderNo;
+        }
+
+        //4. 异步模式（默认）：入队后立即返回，真正写库由消费者线程完成
+        boolean offered = queue.offer(message);
         if (!offered) {
             //队列满了，回滚Redis里的库存和用户记录
             rollback(seckillId, userId, orderNo);
@@ -157,6 +183,16 @@ public class SeckillServiceImpl implements SeckillService {
         log.info("[秒杀入队成功] userId={}, seckillId={}, orderNo={}, queueSize={}",
                 userId, seckillId, orderNo, queue.size());
         return orderNo;
+    }
+
+    @Override
+    public void setAsyncEnabled(boolean asyncEnabled) {
+        this.asyncEnabled = asyncEnabled;
+    }
+
+    @Override
+    public boolean isAsyncEnabled() {
+        return asyncEnabled;
     }
 
     @Override

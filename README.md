@@ -84,7 +84,7 @@ JWT + 自定义拦截器 `JwtTokenUserInterceptor` / `JwtTokenAdminInterceptor`�
 | 问题 | 方案 | 实现 |
 |---|---|---|
 | **缓存穿透** | 缓存空值 | 查不到数据时写入 `"NULL"` 标记，TTL 2 分钟（比正常数据短） |
-| **缓存雪崩** | 随机 TTL | TTL = 30 分钟 + `random(0,10)` 分钟，避免同时失效 |
+| **缓存雪崩** | 随机 TTL | TTL = 120 分钟 + `random(0,10)` 分钟（约 2~2.2 小时），避免同时失效 |
 | **缓存击穿** | 互斥锁 | `setIfAbsent` 抢锁 + 双重检查 + UUID 校验释放，抢不到锁重试 3 次后降级直查 |
 
 管理端增删改菜品时会同步清理缓存（按 `categoryId` 精确清理，批量操作用 `SCAN` 而非 `KEYS`）。

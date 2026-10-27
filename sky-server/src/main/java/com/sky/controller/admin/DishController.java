@@ -34,9 +34,9 @@ public class DishController {
     @ApiOperation("新增菜品")
     public Result save(@RequestBody DishDTO dishDTO) {
         log.info("新增菜品：{}",dishDTO);
-        dishService.saveWithFlavor(dishDTO);
-        //新增的菜品只会影响它所属的分类，精确清理
-        dishCacheService.evictCategory(dishDTO.getCategoryId());
+        //写锁内完成「新增菜品 + 清理该分类缓存」，保证与回源读互斥
+        dishCacheService.executeAndEvictCategory(dishDTO.getCategoryId(),
+                () -> dishService.saveWithFlavor(dishDTO));
         return Result.success();
     }
 
@@ -62,9 +62,8 @@ public class DishController {
     @ApiOperation("菜品批量删除")
     public Result delete(@RequestParam List<Long> ids) {
         log.info("菜品批量删除：{}", ids);
-        dishService.deleteBatch(ids);
-        //批量删除可能跨分类，整体清理
-        dishCacheService.evictAll();
+        //批量删除可能跨分类，写锁内整体清理
+        dishCacheService.executeAndEvictAll(() -> dishService.deleteBatch(ids));
         return Result.success();
     }
 
@@ -88,9 +87,8 @@ public class DishController {
     @PutMapping
     @ApiOperation("修改菜品")
     public Result update(@RequestBody DishDTO dishDTO) {
-        dishService.updateWithFlavor(dishDTO);
-        //修改时分类可能变化，整体清理
-        dishCacheService.evictAll();
+        //修改时分类可能变化，写锁内整体清理
+        dishCacheService.executeAndEvictAll(() -> dishService.updateWithFlavor(dishDTO));
         return Result.success();
     }
 

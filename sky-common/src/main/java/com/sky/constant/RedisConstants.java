@@ -13,10 +13,11 @@ public class RedisConstants {
     //空值缓存标记，用于防止缓存穿透；不能用null，Redis存不了null
     public static final String EMPTY_CACHE = "NULL";
 
-    //正常数据的缓存时间（分钟）
-    public static final long DISH_CACHE_TTL_MINUTES = 30L;
+    //正常数据的缓存时间（分钟）。菜品属于读多写少数据，且管理端写后会主动删缓存，
+    //这里取 2 小时：命中率高、回源少，TTL 只作为"漏删缓存"时的兜底
+    public static final long DISH_CACHE_TTL_MINUTES = 120L;
 
-    //随机TTL的抖动上限（分钟），实际TTL = 30 ~ 40分钟，用于防止缓存雪崩
+    //随机TTL的抖动上限（分钟），实际TTL = 120 ~ 130分钟，用于防止缓存雪崩
     public static final long DISH_CACHE_JITTER_MINUTES = 10L;
 
     //空值缓存的过期时间（分钟），要比正常数据短，避免脏数据长期占位
@@ -79,4 +80,15 @@ public class RedisConstants {
 
     //幂等token在请求头中的字段名
     public static final String IDEMPOTENT_TOKEN_HEADER = "idempotent-token";
+
+    /* ==================== 缓存一致性（Redisson） ==================== */
+
+    //菜品缓存的读写锁key：回源重建(读锁) 与 更新DB+删缓存(写锁) 互斥
+    public static final String DISH_CACHE_RW_LOCK = "lock:dish:cache:rw";
+
+    //同一分类回源重建的互斥锁前缀，完整key：lock:dish:rebuild:{categoryId}
+    public static final String DISH_CACHE_REBUILD_LOCK = "lock:dish:rebuild:";
+
+    //抢重建锁的最长等待时间（秒），超时后降级直查数据库
+    public static final long REBUILD_LOCK_WAIT_SECONDS = 2L;
 }
